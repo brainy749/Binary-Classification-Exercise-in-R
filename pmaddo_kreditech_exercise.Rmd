@@ -1,0 +1,275 @@
+---
+title: "Binary Classification Exercise for Kreditech"
+author: "| Peter Martey Addo\n| Lead Data Scientist, SNCF Mobilite \n \n"
+date: "17 November 2017"
+output:
+  html_document:
+    code_folding: hide
+    fig_height: 7
+    fig_width: 10
+    highlight: tango
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+  prettydoc::html_pretty:
+    highlight: github
+    theme: hpstr
+---
+
+![Source: Google Images](data.jpg)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+# Loading Packages, Reading and loading data 
+
+```{r results='hide', message=FALSE, warning=FALSE}
+suppressMessages(library(h2o))
+#
+### use when under sncf proxy ###
+Sys.unsetenv("https_proxy")
+Sys.unsetenv("http_proxy")
+#h2o.removeAll() ## clean slate - just in case the cluster was already running
+suppressMessages(h2o.init(nthreads = -1))
+h2o.no_progress() # Don't show progress bars in RMarkdown output
+```
+
+## Load data
+We import the data and check the dimensions
+
+```{r results='hide', message=FALSE, warning=FALSE}
+train <- h2o.importFile(path = normalizePath("./data/Training.csv"))
+valid <- h2o.importFile(path = normalizePath("./data/Validation.csv"))
+dim(train)
+dim(valid)
+```
+
+Let check the data structure and content
+```{r}
+h2o.str(train)
+h2o.describe(train)
+```
+
+
+```{r}
+summary(train)
+```
+
+You can notice that the *classlabel* is imbalanced. 
+ 
+##Reformating features
+
+```{r}
+train$v9 <- as.factor(train$v9) #encode  as a factor
+valid$v9 <- as.factor(valid$v9) #encode  as a factor
+
+# Convert the target variable numeric and then to a factor
+train$classlabel <- as.factor(as.numeric(train$classlabel)) #encode  as a factor
+valid$classlabel <- as.factor(as.numeric(valid$classlabel)) #encode  as a factor no = 0, yes = 1
+```
+
+
+# Prepare data for Modelling 
+
+We define the target variable as *classlabel* and the rest of the features in the data set as predictors. 
+
+```{r}
+#We want to predict the `DEFAULT` column
+response <- "classlabel"
+predictors <- setdiff(names(train), c(response)) # all variable except the response
+```
+
+
+The training data is imbalanced. It is known that machine learning algorithms tend to produce unsatisfactory classifiers when faced with imbalanced datasets. In this exercise, we will work with the data as given. However, some know approaches to handling Imbalanced Datasets include are resampling techniques, Algorithmic Ensemble Techniques (i.e constructing several two stage classifiers from the original data and then aggregate their predictions.)
+
+```{r}
+# look at the counts per class in the training set:
+h2o.table(train[response])
+
+# quick look at the validation data 
+h2o.table(valid[response])
+```
+
+# Modeling 
+
+We will start by considering the following models GLM (Elastic Net with logistic function and  regularisation), Gradient - Boosting Machines (gbm), XGboost, Random Forest, multilayer artificial neural network.    
+
+## Building a GLM Model
+
+
+```{r}
+
+glm_model <- h2o.glm(x = predictors, y = response, training_frame = train, model_id = "glm_model",
+                     solver = "IRLSM", standardize = T, link = "logit",
+                     family = "binomial", alpha = 0.5,lambda = 1.92e-6) # you can use lambda_search = TRUE to find optimal lambda 
+summary(glm_model)
+```
+
+The results of the GLM seem good on the training data. I would suggest that we stay calm and relax as this is not tested on the validation dataset. 
+
+## Random Forest 
+
+```{r}
+rf <- h2o.randomForest(         
+  training_frame = train,       
+  validation_frame = valid,     
+  x=predictors,                        ## the predictor columns, by column index
+  y=response,                          ## the target index (what we are predicting)
+  model_id = "rf",    ## name the model 
+  ntrees = 100,                  ## use a maximum of 100 trees to create the forest model. don't worry early stopping is added :) 
+  stopping_rounds = 2,           ## Stop fitting new trees when the 2-tree average is within 0.001 
+  score_each_iteration = T,      ## Predict against training and validation for each tree. 
+  seed = 2000000) ## Set the random seed so that this can be reproduced.)           
+```
+
+## Gradient Boosting Machine 
+
+
+```{r}
+gbm <- h2o.gbm(
+  training_frame = train,     
+  validation_frame = valid,   
+  x=predictors,                     
+  y=response,                       
+  ntrees = 50,               
+  learn_rate = 0.3,           
+  max_depth = 10,             ## 
+  sample_rate = 0.7,          ## use a random 70% of the rows to fit each tree
+  col_sample_rate = 0.7,       ## use 70% of the columns to fit each tree
+  stopping_rounds = 2,        ## 
+  stopping_tolerance = 0.01,  ##
+  score_each_iteration = T,   ##
+  model_id = "gbm",  ##
+  seed = 2000000)             
+```
+
+
+## EXtreme Gradient Boosting Model
+```{r}
+print("Train xgboost model")
+xgb <- h2o.xgboost(x = predictors
+                  ,y = response
+                  ,training_frame = train
+                  ,validation_frame = valid
+                  ,model_id = "xgb_model_1"
+                  ,stopping_rounds = 3
+                  ,stopping_metric = "logloss"
+                  ,distribution = "bernoulli"
+                  ,score_tree_interval = 1
+                  ,learn_rate=0.1
+                  ,ntrees=20
+                  ,subsample = 0.75
+                  ,colsample_bytree = 0.75
+                  ,tree_method = "hist"
+                  ,grow_policy = "lossguide"
+                  ,booster = "gbtree"
+                  ,gamma = 0.0
+                  )
+```
+
+
+## Deep Learning with multilayer artificial neural network
+
+```{r}
+dl.model.1 <- h2o.deeplearning(
+  model_id="dl_model_1", 
+  training_frame=train, 
+  validation_frame=valid,   
+  x=predictors,
+  y=response,
+  #activation="Rectifier",  
+  hidden=c(120,120),       
+  epochs=1,
+  variable_importances=T,  
+  stopping_rounds = 2  # early stopping to avoid overfiting 
+)
+```
+
+
+
+
+## Compare Performance on Validation data using the above models
+
+Compare the valid set performance of the above models.
+```{r}
+base_models <- list(glm_model@model_id, rf@model_id, gbm@model_id,  
+                    xgb@model_id, dl.model.1@model_id)
+
+# Compare to base learner performance on the valid set
+get_auc <- function(mm) h2o.auc(h2o.performance(h2o.getModel(mm), newdata = valid))
+baselearner_aucs <- sapply(base_models, get_auc)
+baselearner_best_auc_valid <- max(baselearner_aucs)
+
+print(sprintf("Best Base-learner Test AUC:  %s", baselearner_best_auc_valid))
+```
+
+We give credit to GLM for offering the best performance possible on the validation data among the other models. However, 
+our performance on the validation set is not something we would like to put in production. This low performance could be linked to imbalanced training data. We consider using an Automatic Machine Learning in search for alternative model performances. 
+
+## Automatic Machine Learning (AutoML)
+
+The AutoML trains and cross-validates a Random Forest, an Extremely-Randomized Forest, a random grid of Gradient Boosting Machines (GBMs), a random grid of Deep Neural Nets, and then trains a Stacked Ensemble using all of the models.
+
+```{r}
+aml.model <- h2o.automl(x=predictors, y=response, training_frame=train,leaderboard_frame = valid, max_runtime_secs = 360,max_models=60, stopping_rounds = 3,stopping_tolerance = -1, seed = 2000000,project_name="kreditech") # max_runtime_secs = 3600 secs (1 hour). 
+
+```
+
+### Extract leader model
+```{r}
+# Extract leader model
+automl_leader <- aml.model@leader
+```
+
+###  Predict on hold-out validation set
+```{r}
+# Predict on hold-out validation set
+
+pred<- h2o.predict(object = automl_leader, newdata = valid)
+
+#Confusion matrix on validation data set
+
+h2o.table(pred$predict, valid$classlabel)
+```
+
+### Compute performance
+
+```{r}
+#compute performance
+
+perf <- h2o.performance(automl_leader,valid)
+
+h2o.confusionMatrix(perf)
+
+h2o.accuracy(perf)
+
+h2o.tpr(perf)
+
+plot(perf,col=2, main = "ROC Curve on Validation data")
+```
+```{r}
+print(sprintf("Best Automl leader Validation AUC:  %s", h2o.auc(perf)))
+```
+Here is the summary of the model with the best performance on validation dataset. 
+
+```{r}
+automl_leader
+```
+
+
+# Conclusion
+
+When working on datasets, it is important to check on the structure and content. Knowing your dataset can help build features that could boost performance. Imbalance train data can impact the performance of your model. It is always a good to have a linear model as a benchmark.  
+
+
+```{r results='hide', message=FALSE, warning=FALSE}
+# All done, shutdown H2O
+h2o.shutdown(prompt=FALSE)
+```
+
+
