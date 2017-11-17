@@ -1,6 +1,8 @@
 # Binary-Classification-Prediction
 
-In binary classification problem, the objective is to build a classifier only with the training data, with the goal of achieving the best performance possible on the validation data.
+In this binary classification problem, the objective is to build a classifier only with the training data, with the goal of achieving the best performance possible on the validation data.
+
+We start by considering the following models GLM (Elastic Net with logistic function and regularisation), Gradient - Boosting Machines (gbm), XGboost, Random Forest, multilayer artificial neural network in H2o and then select a lead model with H2o AutoML algorithm. 
 
 In this exercise, the best performance model was a gbm (with 81 trees and max depth of 8)  giving  AUC of 0.767259571902321 on on the validation data.
 
