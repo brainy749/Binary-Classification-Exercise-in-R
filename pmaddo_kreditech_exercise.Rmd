@@ -1,5 +1,5 @@
 ---
-title: "Binary Classification Exercise for Kreditech"
+title: "Binary Classification Prediction Exercise for Kreditech"
 author: "| Peter Martey Addo\n| Lead Data Scientist, SNCF Mobilite \n \n"
 date: "17 November 2017"
 output:
@@ -62,7 +62,7 @@ summary(train)
 
 You can notice that the *classlabel* is imbalanced. 
  
-##Reformating features
+## Reformating features
 
 ```{r}
 train$v9 <- as.factor(train$v9) #encode  as a factor
