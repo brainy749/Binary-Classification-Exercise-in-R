@@ -6,6 +6,8 @@ We start by considering the following models GLM (Elastic Net with logistic func
 
 In this exercise, the best performance model was a gbm (with 81 trees and max depth of 8)  giving  `AUC of 0.767` on on the validation data.
 
+Target variable is `classlabel`
+
 Contents: 
 
 - R Markdown file (`pmaddo_kreditech_exercise.Rmd`) 
