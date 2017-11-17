@@ -7,8 +7,6 @@ In this exercise, the best performance model was a gbm (with 81 trees and max de
 Contents: 
 
 - R Markdown file (`pmaddo_kreditech_exercise.Rmd`) 
-- Html Output from Rmd file (pmaddo_kreditech_exercise.html”). 
-- You can easily read through the html output like a report. 
-- Select “Show All code” at the top right corner of html to display R codes and comments :) 
-- Best Performance model was a gbm (with 81 trees and max depth of 8)  giving  AUC:  0.767259571902321 on on the validation data
-- See Section 3.7.3 for details on the gam model. 
+- Html Output from Rmd file (`pmaddo_kreditech_exercise.html`). 
+- You can easily read through the html output like a report by selecting **Show All code** at the top right corner of the html to display R codes and comments :) 
+- See Section 3.7.3 for details on the gbm model. 
